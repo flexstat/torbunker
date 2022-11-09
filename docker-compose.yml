@@ -1,0 +1,59 @@
+version: '3.1'
+
+services:
+
+  myonion:
+    image: goldy/tor-hidden-service
+    volumes:
+      - ./hidden-services:/var/lib/tor/hidden_service # .onion address and private key will be located in ./hidden_service
+      - ./tor:/etc/tor
+    environment:
+        TOR_EXTRA_OPTIONS: |
+          HiddenServiceDir /var/lib/tor/hidden_service/service1
+          HiddenServiceVersion 3
+          HiddenServicePort 80 mybunker:8080
+          HiddenServiceMaxStreams 20
+          HiddenServiceEnableIntroDoSDefense 1
+          HiddenServiceMaxStreamsCloseCircuit 1
+          HiddenServiceNumIntroductionPoints 5
+          BandwidthRate 50 MBytes
+          BandwidthBurst 75 MBytes
+          CookieAuthentication 1
+          HardwareAccel 1
+          #HiddenServiceExportCircuitID haproxy
+          #HiddenServiceOnionBalanceInstance 1
+
+          
+  mybunker:
+    image: bunkerity/bunkerweb:1.4.3
+    # ⚠️ read this if you use local folders for volumes ⚠️
+    # bunkerweb runs as an unprivileged user with UID/GID 101
+    # don't forget to edit the permissions of the files and folders accordingly
+    # example if you need to create a directory : mkdir folder && chown root:101 folder && chmod 770 folder
+    # another example for existing folder : chown -R root:101 folder && chmod -R 770 folder
+    # more info at https://docs.bunkerweb.io
+    volumes:
+      - ./nginx-d:/etc/nginx
+      - bw_cache:/cache
+    environment:
+      # disable common security measures based on IP
+      - USE_BAD_BEHAVIOR=no
+      - USE_DNSBL=no
+      - USE_WHITELIST=no
+      - USE_BLACKLIST=no
+      # enable captcha at least
+      - USE_ANTIBOT=hcaptcha
+      - ANTIBOT_URI=/botdetect
+      - ANTIBOT_HCAPTCHA_SITEKEY=efc8870e-0efa-4d5f-9224-92fb9074521b
+      - ANTIBOT_HCAPTCHA_SECRET=0xDA488c307A9d68A4E1c06D5F64FbFE5dC0146F89
+      - USE_CLIENT_CACHE=yes
+      - USE_GZIP=yes
+      - USE_REVERSE_PROXY=yes
+      - REVERSE_PROXY_URL=/
+      - REVERSE_PROXY_HOST=http://myapp
+
+  myapp:
+    image: tutum/hello-world
+
+volumes:
+  bw_cache:
